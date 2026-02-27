@@ -7,6 +7,12 @@ from pathlib import Path
 
 import structlog
 
+import os
+
+# Unset CLAUDECODE env var to allow launching Claude Agent SDK sessions
+# from within a Claude Code session (e.g., during development/testing)
+os.environ.pop("CLAUDECODE", None)
+
 import claude_agent_sdk
 from claude_agent_sdk import (
     AssistantMessage,
