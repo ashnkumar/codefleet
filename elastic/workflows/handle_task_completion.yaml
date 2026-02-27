@@ -1,0 +1,66 @@
+version: "1"
+name: handle_task_completion
+description: >
+  Fires when a task's status changes to completed. Finds all tasks
+  whose depends_on list contains the completed task_id, removes
+  the completed task from their blocked_by lists, and moves
+  fully-unblocked tasks to pending status.
+triggers:
+  - type: alert
+    condition:
+      index: codefleet-tasks
+      query:
+        term:
+          status: completed
+steps:
+  - name: find_dependent_tasks
+    type: elasticsearch.search
+    with:
+      index: codefleet-tasks
+      query:
+        bool:
+          must:
+            - term:
+                depends_on: "{{ trigger.document._id }}"
+            - term:
+                status: blocked
+      size: 50
+
+  - name: unblock_dependents
+    type: elasticsearch.update_by_query
+    condition: "{{ steps.find_dependent_tasks.result.hits.total.value > 0 }}"
+    with:
+      index: codefleet-tasks
+      query:
+        bool:
+          must:
+            - term:
+                depends_on: "{{ trigger.document._id }}"
+            - term:
+                status: blocked
+      script:
+        source: >
+          if (ctx._source.blocked_by instanceof List) {
+            ctx._source.blocked_by.removeIf(id -> id == params.completed_id);
+            if (ctx._source.blocked_by.size() == 0) {
+              ctx._source.status = 'pending';
+            }
+          } else if (ctx._source.blocked_by == params.completed_id) {
+            ctx._source.blocked_by = [];
+            ctx._source.status = 'pending';
+          }
+          ctx._source.updated_at = params.now;
+        params:
+          completed_id: "{{ trigger.document._id }}"
+          now: "{{ 'now' | date: '%Y-%m-%dT%H:%M:%SZ' }}"
+
+  - name: log_unblock_event
+    type: elasticsearch.index
+    condition: "{{ steps.find_dependent_tasks.result.hits.total.value > 0 }}"
+    with:
+      index: codefleet-activity
+      document:
+        event_type: task_unblocked
+        task_id: "{{ trigger.document._id }}"
+        message: "Task completed — unblocked {{ steps.find_dependent_tasks.result.hits.total.value }} dependent tasks"
+        timestamp: "{{ 'now' | date: '%Y-%m-%dT%H:%M:%SZ' }}"

@@ -1,0 +1,25 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1
+  },
+  "mappings": {
+    "properties": {
+      "agent_id": { "type": "keyword" },
+      "name": { "type": "keyword" },
+      "type": { "type": "keyword" },
+      "status": { "type": "keyword" },
+      "current_task_id": { "type": "keyword" },
+      "capabilities": { "type": "keyword" },
+      "worktree_path": { "type": "keyword" },
+      "session_id": { "type": "keyword" },
+      "last_heartbeat": { "type": "date" },
+      "tasks_completed": { "type": "integer" },
+      "tasks_failed": { "type": "integer" },
+      "total_tokens_used": { "type": "long" },
+      "total_cost_usd": { "type": "float" },
+      "created_at": { "type": "date" },
+      "updated_at": { "type": "date" }
+    }
+  }
+}

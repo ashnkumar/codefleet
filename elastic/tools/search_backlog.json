@@ -1,0 +1,17 @@
+{
+  "id": "search_backlog",
+  "type": "esql",
+  "description": "Search the task backlog for the highest-priority tasks that are ready to be assigned to agents. Returns pending tasks sorted by priority (highest first) then creation date (oldest first). Use this when you need to find work to assign to idle agents.",
+  "tags": ["tasks", "backlog", "assignment"],
+  "configuration": {
+    "query": "FROM codefleet-tasks | WHERE status == \"pending\" | SORT priority DESC, created_at ASC | LIMIT ?count",
+    "params": {
+      "count": {
+        "type": "integer",
+        "description": "Maximum number of tasks to return. Default 10.",
+        "optional": true,
+        "defaultValue": 10
+      }
+    }
+  }
+}

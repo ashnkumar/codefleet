@@ -1,0 +1,20 @@
+name: agent_completion
+description: Handle task completion - update statuses and unblock dependent tasks
+inputs:
+  - task_id
+  - agent_id
+steps:
+  - id: find_dependent_tasks
+    action: elasticsearch.search
+    params:
+      index: codefleet-tasks
+      body:
+        query:
+          term:
+            depends_on: "{{ inputs.task_id }}"
+  - id: unblock_tasks
+    action: elasticsearch.bulk_update
+    condition: "{{ steps.find_dependent_tasks.result.hits.total.value > 0 }}"
+    params:
+      index: codefleet-tasks
+      updates: "{{ steps.find_dependent_tasks.result.hits.hits | map_unblock(inputs.task_id) }}"

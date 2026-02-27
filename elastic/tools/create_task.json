@@ -1,0 +1,11 @@
+{
+  "id": "create_task",
+  "type": "workflow",
+  "description": "Create a new coding task in the CodeFleet backlog. Use this when the user describes work they want done — break features into discrete tasks with clear titles, descriptions, priorities, dependencies, and file scopes. Each call creates one task. For tasks with dependencies, set depends_on to the IDs of tasks that must complete first.",
+  "tags": ["tasks", "create", "write", "backlog"],
+  "configuration": {
+    "workflow_id": null
+  },
+  "_workflow_name": "create_task",
+  "_note": "workflow_id is populated at deploy time by create_workflows.py"
+}

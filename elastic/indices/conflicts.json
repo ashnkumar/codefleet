@@ -1,0 +1,19 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1
+  },
+  "mappings": {
+    "properties": {
+      "conflict_id": { "type": "keyword" },
+      "agent_ids": { "type": "keyword" },
+      "task_ids": { "type": "keyword" },
+      "file_paths": { "type": "keyword" },
+      "conflict_type": { "type": "keyword" },
+      "status": { "type": "keyword" },
+      "resolution": { "type": "text" },
+      "detected_at": { "type": "date" },
+      "resolved_at": { "type": "date" }
+    }
+  }
+}

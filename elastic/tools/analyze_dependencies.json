@@ -1,0 +1,17 @@
+{
+  "id": "analyze_dependencies",
+  "type": "esql",
+  "description": "Analyze task dependencies to find tasks that are currently blocked or pending and what they're waiting on. Shows the dependency chain so you can identify bottlenecks and prioritize unblocking work.",
+  "tags": ["tasks", "dependencies", "planning"],
+  "configuration": {
+    "query": "FROM codefleet-tasks | WHERE status IN (\"blocked\", \"pending\") | EVAL has_deps = MV_COUNT(depends_on) > 0 | SORT has_deps DESC, priority DESC | LIMIT ?count",
+    "params": {
+      "count": {
+        "type": "integer",
+        "description": "Maximum tasks to analyze. Default 20.",
+        "optional": true,
+        "defaultValue": 20
+      }
+    }
+  }
+}

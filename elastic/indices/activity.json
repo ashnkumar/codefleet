@@ -1,0 +1,22 @@
+{
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1
+  },
+  "mappings": {
+    "properties": {
+      "event_id": { "type": "keyword" },
+      "agent_id": { "type": "keyword" },
+      "task_id": { "type": "keyword" },
+      "event_type": { "type": "keyword" },
+      "message": { "type": "text" },
+      "files_changed": { "type": "keyword" },
+      "tool_name": { "type": "keyword" },
+      "tokens_used": { "type": "integer" },
+      "cost_usd": { "type": "float" },
+      "duration_ms": { "type": "long" },
+      "metadata": { "type": "object", "enabled": false },
+      "timestamp": { "type": "date" }
+    }
+  }
+}

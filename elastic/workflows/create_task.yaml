@@ -1,0 +1,48 @@
+version: "1"
+name: create_task
+description: >
+  Create a new coding task in the CodeFleet backlog.
+  Indexes a task document into codefleet-tasks with all required fields
+  including a semantic search field for similarity matching.
+triggers:
+  - type: manual
+inputs:
+  - name: title
+    type: string
+    description: "Task title in imperative form (e.g. Add X, Fix Y, Create Z)"
+  - name: description
+    type: string
+    description: "Detailed task description with acceptance criteria"
+  - name: priority
+    type: string
+    description: "Priority 1-5 where 5=critical, 4=high, 3=medium, 2=low, 1=trivial"
+  - name: depends_on
+    type: string
+    description: "Comma-separated task IDs this task depends on, or empty string"
+  - name: file_scope
+    type: string
+    description: "Comma-separated file paths this task will likely modify"
+  - name: labels
+    type: string
+    description: "Comma-separated labels for categorization"
+  - name: estimated_complexity
+    type: string
+    description: "One of: trivial, small, medium, large, xl"
+steps:
+  - name: index_task
+    type: elasticsearch.index
+    with:
+      index: codefleet-tasks
+      document:
+        title: "{{ inputs.title }}"
+        description: "{{ inputs.description }}"
+        description_semantic: "{{ inputs.title }}. {{ inputs.description }}"
+        status: pending
+        priority: "{{ inputs.priority }}"
+        depends_on: "{{ inputs.depends_on }}"
+        blocked_by: "{{ inputs.depends_on }}"
+        file_scope: "{{ inputs.file_scope }}"
+        labels: "{{ inputs.labels }}"
+        estimated_complexity: "{{ inputs.estimated_complexity }}"
+        created_at: "{{ 'now' | date: '%Y-%m-%dT%H:%M:%SZ' }}"
+        updated_at: "{{ 'now' | date: '%Y-%m-%dT%H:%M:%SZ' }}"

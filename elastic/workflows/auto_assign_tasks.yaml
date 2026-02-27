@@ -1,0 +1,61 @@
+version: "1"
+name: auto_assign_tasks
+description: >
+  Automatically match pending unblocked tasks to idle agents.
+  Runs on a schedule every 5 seconds. Queries for tasks with
+  status=pending and empty blocked_by, finds idle agents, and
+  assigns the highest-priority task to the first available agent.
+triggers:
+  - type: schedule
+    interval: 5s
+steps:
+  - name: find_pending_tasks
+    type: elasticsearch.search
+    with:
+      index: codefleet-tasks
+      query:
+        bool:
+          must:
+            - term:
+                status: pending
+          must_not:
+            - exists:
+                field: blocked_by
+      sort:
+        - priority:
+            order: desc
+        - created_at:
+            order: asc
+      size: 10
+
+  - name: find_idle_agents
+    type: elasticsearch.search
+    with:
+      index: codefleet-agents
+      query:
+        term:
+          status: idle
+      size: 10
+
+  - name: assign_task
+    type: elasticsearch.update
+    condition: "{{ steps.find_pending_tasks.result.hits.total.value > 0 and steps.find_idle_agents.result.hits.total.value > 0 }}"
+    with:
+      index: codefleet-tasks
+      id: "{{ steps.find_pending_tasks.result.hits.hits[0]._id }}"
+      document:
+        status: assigned
+        assigned_to: "{{ steps.find_idle_agents.result.hits.hits[0]._id }}"
+        assigned_at: "{{ 'now' | date: '%Y-%m-%dT%H:%M:%SZ' }}"
+        updated_at: "{{ 'now' | date: '%Y-%m-%dT%H:%M:%SZ' }}"
+
+  - name: update_agent
+    type: elasticsearch.update
+    condition: "{{ steps.find_pending_tasks.result.hits.total.value > 0 and steps.find_idle_agents.result.hits.total.value > 0 }}"
+    with:
+      index: codefleet-agents
+      id: "{{ steps.find_idle_agents.result.hits.hits[0]._id }}"
+      document:
+        status: working
+        current_task_id: "{{ steps.find_pending_tasks.result.hits.hits[0]._id }}"
+        updated_at: "{{ 'now' | date: '%Y-%m-%dT%H:%M:%SZ' }}"

@@ -1,0 +1,10 @@
+{
+  "id": "check_agent_status",
+  "type": "esql",
+  "description": "Check the current status of all registered coding agents in the fleet, including what task each agent is working on, when they last sent a heartbeat, and their cumulative statistics. Use this to find idle agents for task assignment or detect agents that may be stuck.",
+  "tags": ["agents", "status", "monitoring"],
+  "configuration": {
+    "query": "FROM codefleet-agents | WHERE status != \"offline\" | SORT status ASC, last_heartbeat DESC | LIMIT 50",
+    "params": {}
+  }
+}

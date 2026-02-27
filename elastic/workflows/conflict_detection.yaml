@@ -1,0 +1,34 @@
+name: conflict_detection
+description: Detect files modified by multiple agents and create conflict records
+trigger:
+  type: schedule
+  interval: 60s
+steps:
+  - id: find_overlapping_files
+    action: elasticsearch.search
+    params:
+      index: codefleet-changes
+      body:
+        size: 0
+        query:
+          range:
+            timestamp:
+              gte: "now-5m"
+        aggs:
+          by_file:
+            terms:
+              field: file_path
+              min_doc_count: 2
+            aggs:
+              agents:
+                terms:
+                  field: agent_id
+              tasks:
+                terms:
+                  field: task_id
+  - id: create_conflict_records
+    action: elasticsearch.bulk
+    condition: "{{ steps.find_overlapping_files.result.aggregations.by_file.buckets | length > 0 }}"
+    params:
+      index: codefleet-conflicts
+      body: "{{ steps.find_overlapping_files.result.aggregations.by_file.buckets | map_conflicts }}"

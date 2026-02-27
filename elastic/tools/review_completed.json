@@ -1,0 +1,17 @@
+{
+  "id": "review_completed",
+  "type": "esql",
+  "description": "Review recently completed tasks (last 7 days) including their results, which agent completed them, how long they took, and token/cost usage. Use this to provide status updates to the user and to verify work quality.",
+  "tags": ["tasks", "review", "completed"],
+  "configuration": {
+    "query": "FROM codefleet-tasks | WHERE status == \"completed\" | SORT completed_at DESC | LIMIT ?count",
+    "params": {
+      "count": {
+        "type": "integer",
+        "description": "Maximum number of completed tasks to return. Default 20.",
+        "optional": true,
+        "defaultValue": 20
+      }
+    }
+  }
+}

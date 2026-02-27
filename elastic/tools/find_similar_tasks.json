@@ -1,0 +1,21 @@
+{
+  "id": "find_similar_tasks",
+  "type": "esql",
+  "description": "Find tasks semantically similar to a given description using vector search. Use this to find duplicate or related tasks before creating new ones, to group related work together, or to find tasks similar to a bug report. Returns tasks ranked by semantic similarity.",
+  "tags": ["tasks", "semantic", "search", "similarity"],
+  "configuration": {
+    "query": "FROM codefleet-tasks METADATA _score | WHERE MATCH(description_semantic, ?query) | SORT _score DESC | KEEP task_id, title, description, status, priority, assigned_to, labels, _score | LIMIT ?count",
+    "params": {
+      "query": {
+        "type": "string",
+        "description": "Natural language description to search for similar tasks."
+      },
+      "count": {
+        "type": "integer",
+        "description": "Maximum number of similar tasks to return. Default 5.",
+        "optional": true,
+        "defaultValue": 5
+      }
+    }
+  }
+}

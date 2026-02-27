@@ -1,0 +1,38 @@
+{
+  "mappings": {
+    "properties": {
+      "task_id": { "type": "keyword" },
+      "title": {
+        "type": "text",
+        "fields": {
+          "keyword": { "type": "keyword" }
+        }
+      },
+      "description": { "type": "text" },
+      "description_semantic": {
+        "type": "semantic_text",
+        "inference_id": ".multilingual-e5-small-elasticsearch"
+      },
+      "status": { "type": "keyword" },
+      "priority": { "type": "integer" },
+      "assigned_to": { "type": "keyword" },
+      "depends_on": { "type": "keyword" },
+      "blocked_by": { "type": "keyword" },
+      "file_scope": { "type": "keyword" },
+      "labels": { "type": "keyword" },
+      "branch_name": { "type": "keyword" },
+      "pr_url": { "type": "keyword" },
+      "result_summary": { "type": "text" },
+      "error_message": { "type": "text" },
+      "estimated_complexity": { "type": "keyword" },
+      "actual_tokens_used": { "type": "long" },
+      "actual_cost_usd": { "type": "float" },
+      "actual_duration_ms": { "type": "long" },
+      "created_at": { "type": "date" },
+      "updated_at": { "type": "date" },
+      "assigned_at": { "type": "date" },
+      "started_at": { "type": "date" },
+      "completed_at": { "type": "date" }
+    }
+  }
+}

@@ -1,0 +1,37 @@
+name: task_assignment
+description: Assign a task to an agent by updating both the task and agent records
+inputs:
+  - task_id
+  - agent_id
+steps:
+  - id: update_task
+    action: elasticsearch.update
+    params:
+      index: codefleet-tasks
+      id: "{{ inputs.task_id }}"
+      body:
+        doc:
+          status: assigned
+          assigned_to: "{{ inputs.agent_id }}"
+          assigned_at: "{{ now }}"
+          updated_at: "{{ now }}"
+  - id: update_agent
+    action: elasticsearch.update
+    params:
+      index: codefleet-agents
+      id: "{{ inputs.agent_id }}"
+      body:
+        doc:
+          status: working
+          current_task_id: "{{ inputs.task_id }}"
+          updated_at: "{{ now }}"
+  - id: log_activity
+    action: elasticsearch.index
+    params:
+      index: codefleet-activity
+      body:
+        event_type: task_started
+        agent_id: "{{ inputs.agent_id }}"
+        task_id: "{{ inputs.task_id }}"
+        message: "Task assigned to agent"
+        timestamp: "{{ now }}"

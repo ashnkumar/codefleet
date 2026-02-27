@@ -1,0 +1,10 @@
+{
+  "id": "detect_conflicts",
+  "type": "esql",
+  "description": "Detect potential merge conflicts by finding files that multiple agents have modified within the last hour. Returns file paths with the count of distinct agents that touched them and which agents and tasks are involved. Use this proactively to prevent merge conflicts before they happen.",
+  "tags": ["conflicts", "detection", "files"],
+  "configuration": {
+    "query": "FROM codefleet-changes | WHERE timestamp > NOW() - 1 hour | STATS agent_count = COUNT_DISTINCT(agent_id), agents = VALUES(agent_id), tasks = VALUES(task_id) BY file_path | WHERE agent_count > 1 | SORT agent_count DESC",
+    "params": {}
+  }
+}

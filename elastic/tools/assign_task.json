@@ -1,0 +1,15 @@
+{
+  "id": "assign_task",
+  "type": "esql",
+  "description": "Look up a specific task by ID to verify it exists and is pending before assignment. After confirming the task is available, use the task_assignment workflow to actually perform the assignment. Always check that the target agent is idle using check_agent_status before assigning.",
+  "tags": ["tasks", "assignment"],
+  "configuration": {
+    "query": "FROM codefleet-tasks | WHERE task_id == ?task_id",
+    "params": {
+      "task_id": {
+        "type": "string",
+        "description": "The ID of the task to look up for assignment"
+      }
+    }
+  }
+}
