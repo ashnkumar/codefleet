@@ -95,6 +95,15 @@ AGENT_BUILDER_MCP_PATH = "/api/agent_builder/mcp"
 AGENT_BUILDER_TIMEOUT = 30.0  # seconds
 
 # ---------------------------------------------------------------------------
+# Elastic Workflows
+# ---------------------------------------------------------------------------
+WORKFLOWS_API_PATH = "/api/workflows"
+
+# Workflow IDs — set after deployment via create_workflows.py.
+# These are read from the deployed manifest at runtime.
+COMPLETION_WORKFLOW_ID = ""  # handle_task_completion — set at startup
+
+# ---------------------------------------------------------------------------
 # Logging / Output
 # ---------------------------------------------------------------------------
 AGENT_LOG_DIR = "logs/agents"  # Directory for per-agent activity logs

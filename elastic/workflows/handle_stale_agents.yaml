@@ -1,33 +1,21 @@
-version: "1"
 name: handle_stale_agents
 description: >
-  Runs every 60 seconds to detect agents that have not sent a
-  heartbeat in the last 2 minutes. Marks them as offline and
-  re-queues any tasks they were assigned back to pending status.
+  Runs periodically to detect agents that have not sent a heartbeat
+  in the last 2 minutes. Marks them as offline and re-queues any
+  tasks they were assigned back to pending status.
+enabled: true
+
 triggers:
-  - type: schedule
-    interval: 60s
+  - type: scheduled
+    with:
+      every: 60s
+
 steps:
   - name: find_stale_agents
     type: elasticsearch.search
     with:
       index: codefleet-agents
-      query:
-        bool:
-          must:
-            - range:
-                last_heartbeat:
-                  lt: "now-2m"
-          must_not:
-            - term:
-                status: offline
       size: 20
-
-  - name: mark_agents_offline
-    type: elasticsearch.update_by_query
-    condition: "{{ steps.find_stale_agents.result.hits.total.value > 0 }}"
-    with:
-      index: codefleet-agents
       query:
         bool:
           must:
@@ -37,40 +25,56 @@ steps:
           must_not:
             - term:
                 status: offline
-      script:
-        source: >
-          ctx._source.status = 'offline';
-          ctx._source.current_task_id = null;
-          ctx._source.updated_at = params.now;
-        params:
-          now: "{{ 'now' | date: '%Y-%m-%dT%H:%M:%SZ' }}"
 
-  - name: requeue_stale_tasks
-    type: elasticsearch.update_by_query
-    condition: "{{ steps.find_stale_agents.result.hits.total.value > 0 }}"
-    with:
-      index: codefleet-tasks
-      query:
-        bool:
-          must:
-            - term:
-                status: assigned
-            - terms:
-                assigned_to: "{{ steps.find_stale_agents.result.hits.hits | map: '_id' }}"
-      script:
-        source: >
-          ctx._source.status = 'pending';
-          ctx._source.assigned_to = null;
-          ctx._source.updated_at = params.now;
-        params:
-          now: "{{ 'now' | date: '%Y-%m-%dT%H:%M:%SZ' }}"
+  - name: handle_stale
+    type: if
+    condition: "steps.find_stale_agents.output.hits.total.value > 0"
+    steps:
+      - name: process_each_stale_agent
+        type: foreach
+        foreach: steps.find_stale_agents.output.hits.hits
+        steps:
+          - name: mark_agent_offline
+            type: elasticsearch.update
+            with:
+              index: codefleet-agents
+              id: "{{ foreach.item._id }}"
+              doc:
+                status: offline
+                current_task_id: null
+                updated_at: "{{ 'now' | date: '%Y-%m-%dT%H:%M:%SZ' }}"
 
-  - name: log_stale_recovery
-    type: elasticsearch.index
-    condition: "{{ steps.find_stale_agents.result.hits.total.value > 0 }}"
-    with:
-      index: codefleet-activity
-      document:
-        event_type: stale_agent_recovery
-        message: "Recovered {{ steps.find_stale_agents.result.hits.total.value }} stale agents — tasks re-queued"
-        timestamp: "{{ 'now' | date: '%Y-%m-%dT%H:%M:%SZ' }}"
+          - name: requeue_agent_tasks
+            type: elasticsearch.request
+            with:
+              method: POST
+              path: "/codefleet-tasks/_update_by_query"
+              body:
+                query:
+                  bool:
+                    must:
+                      - term:
+                          status: assigned
+                      - term:
+                          assigned_to: "{{ foreach.item._id }}"
+                script:
+                  source: >
+                    ctx._source.status = 'pending';
+                    ctx._source.assigned_to = null;
+                    ctx._source.updated_at = params.now;
+                  params:
+                    now: "{{ 'now' | date: '%Y-%m-%dT%H:%M:%SZ' }}"
+
+      - name: log_stale_recovery
+        type: elasticsearch.index
+        with:
+          index: codefleet-activity
+          document:
+            event_type: stale_agent_recovery
+            message: "Recovered {{ steps.find_stale_agents.output.hits.total.value }} stale agents — tasks re-queued"
+            timestamp: "{{ 'now' | date: '%Y-%m-%dT%H:%M:%SZ' }}"
+    else:
+      - name: log_all_healthy
+        type: console
+        with:
+          message: "All agents healthy"

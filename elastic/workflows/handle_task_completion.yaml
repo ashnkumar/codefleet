@@ -1,66 +1,73 @@
-version: "1"
 name: handle_task_completion
 description: >
-  Fires when a task's status changes to completed. Finds all tasks
-  whose depends_on list contains the completed task_id, removes
-  the completed task from their blocked_by lists, and moves
-  fully-unblocked tasks to pending status.
+  Fires when a task completes. Finds all tasks whose depends_on list
+  contains the completed task_id, removes it from their blocked_by lists,
+  and moves fully-unblocked tasks to pending status.
+enabled: true
+
 triggers:
+  - type: manual
   - type: alert
-    condition:
-      index: codefleet-tasks
-      query:
-        term:
-          status: completed
+
+inputs:
+  - name: completed_task_id
+    type: string
+    required: true
+    description: "The task_id of the completed task"
+
 steps:
   - name: find_dependent_tasks
     type: elasticsearch.search
     with:
       index: codefleet-tasks
-      query:
-        bool:
-          must:
-            - term:
-                depends_on: "{{ trigger.document._id }}"
-            - term:
-                status: blocked
       size: 50
-
-  - name: unblock_dependents
-    type: elasticsearch.update_by_query
-    condition: "{{ steps.find_dependent_tasks.result.hits.total.value > 0 }}"
-    with:
-      index: codefleet-tasks
       query:
         bool:
           must:
-            - term:
-                depends_on: "{{ trigger.document._id }}"
-            - term:
-                status: blocked
-      script:
-        source: >
-          if (ctx._source.blocked_by instanceof List) {
-            ctx._source.blocked_by.removeIf(id -> id == params.completed_id);
-            if (ctx._source.blocked_by.size() == 0) {
-              ctx._source.status = 'pending';
-            }
-          } else if (ctx._source.blocked_by == params.completed_id) {
-            ctx._source.blocked_by = [];
-            ctx._source.status = 'pending';
-          }
-          ctx._source.updated_at = params.now;
-        params:
-          completed_id: "{{ trigger.document._id }}"
-          now: "{{ 'now' | date: '%Y-%m-%dT%H:%M:%SZ' }}"
+            - match:
+                blocked_by: "{{ inputs.completed_task_id }}"
 
-  - name: log_unblock_event
-    type: elasticsearch.index
-    condition: "{{ steps.find_dependent_tasks.result.hits.total.value > 0 }}"
-    with:
-      index: codefleet-activity
-      document:
-        event_type: task_unblocked
-        task_id: "{{ trigger.document._id }}"
-        message: "Task completed — unblocked {{ steps.find_dependent_tasks.result.hits.total.value }} dependent tasks"
-        timestamp: "{{ 'now' | date: '%Y-%m-%dT%H:%M:%SZ' }}"
+  - name: unblock_if_found
+    type: if
+    condition: "steps.find_dependent_tasks.output.hits.total.value > 0"
+    steps:
+      - name: process_each_dependent
+        type: foreach
+        foreach: steps.find_dependent_tasks.output.hits.hits
+        steps:
+          - name: unblock_task
+            type: elasticsearch.request
+            with:
+              method: POST
+              path: "/codefleet-tasks/_update/{{ foreach.item._id }}"
+              body:
+                script:
+                  source: >
+                    if (ctx._source.blocked_by instanceof List) {
+                      ctx._source.blocked_by.removeIf(id -> id == params.completed_id);
+                      if (ctx._source.blocked_by.size() == 0) {
+                        ctx._source.status = 'pending';
+                      }
+                    } else if (ctx._source.blocked_by instanceof String && ctx._source.blocked_by.contains(params.completed_id)) {
+                      ctx._source.blocked_by = '';
+                      ctx._source.status = 'pending';
+                    }
+                    ctx._source.updated_at = params.now;
+                  params:
+                    completed_id: "{{ inputs.completed_task_id }}"
+                    now: "{{ 'now' | date: '%Y-%m-%dT%H:%M:%SZ' }}"
+
+      - name: log_unblock_event
+        type: elasticsearch.index
+        with:
+          index: codefleet-activity
+          document:
+            event_type: task_unblocked
+            task_id: "{{ inputs.completed_task_id }}"
+            message: "Task completed — unblocked {{ steps.find_dependent_tasks.output.hits.total.value }} dependent tasks"
+            timestamp: "{{ 'now' | date: '%Y-%m-%dT%H:%M:%SZ' }}"
+    else:
+      - name: log_no_dependents
+        type: console
+        with:
+          message: "No dependent tasks found for {{ inputs.completed_task_id }}"

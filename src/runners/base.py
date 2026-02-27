@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import signal
 from abc import ABC, abstractmethod
 from datetime import datetime
+from pathlib import Path
 
+import httpx
 import structlog
 
 from src.config.constants import (
@@ -14,6 +17,7 @@ from src.config.constants import (
     IDX_AGENTS,
     IDX_CHANGES,
     IDX_TASKS,
+    WORKFLOWS_API_PATH,
 )
 from src.config.settings import ElasticClient, get_es_client, get_settings
 from src.models import (
@@ -54,6 +58,21 @@ class BaseRunner(ABC):
         self._current_task_id: str | None = None
         self._es: ElasticClient | None = None
         self._settings = get_settings()
+        self._completion_workflow_id: str | None = self._load_workflow_id(
+            "handle_task_completion"
+        )
+
+    @staticmethod
+    def _load_workflow_id(workflow_name: str) -> str | None:
+        """Load a workflow ID from the deployed manifest."""
+        manifest = Path("elastic/workflows/.deployed_workflows.json")
+        if not manifest.exists():
+            return None
+        try:
+            data = json.loads(manifest.read_text())
+            return data.get(workflow_name)
+        except Exception:
+            return None
 
     @property
     def es(self) -> ElasticClient:
@@ -260,6 +279,52 @@ class BaseRunner(ABC):
         )
 
     # ------------------------------------------------------------------
+    # Workflow integration
+    # ------------------------------------------------------------------
+
+    async def _trigger_completion_workflow(self, task_id: str) -> None:
+        """Trigger the handle_task_completion workflow to unblock dependents."""
+        if not self._completion_workflow_id:
+            logger.debug("runner.no_completion_workflow", task_id=task_id)
+            return
+
+        url = (
+            f"{self._settings.kibana_url}"
+            f"{WORKFLOWS_API_PATH}/{self._completion_workflow_id}/run"
+        )
+        headers = {
+            "Authorization": f"ApiKey {self._settings.kibana_api_key}",
+            "Content-Type": "application/json",
+            "kbn-xsrf": "true",
+            "x-elastic-internal-origin": "Kibana",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.post(
+                    url,
+                    headers=headers,
+                    json={"inputs": {"completed_task_id": task_id}},
+                )
+                if resp.status_code in (200, 201):
+                    data = resp.json()
+                    logger.info(
+                        "runner.completion_workflow_triggered",
+                        task_id=task_id,
+                        execution_id=data.get("workflowExecutionId"),
+                    )
+                else:
+                    logger.warning(
+                        "runner.completion_workflow_failed",
+                        task_id=task_id,
+                        status=resp.status_code,
+                        body=resp.text[:200],
+                    )
+        except Exception:
+            logger.exception(
+                "runner.completion_workflow_error", task_id=task_id
+            )
+
+    # ------------------------------------------------------------------
     # Task completion / failure
     # ------------------------------------------------------------------
 
@@ -321,6 +386,8 @@ class BaseRunner(ABC):
             summary=result.summary,
         )
 
+        # Trigger the completion workflow to unblock dependent tasks
+        await self._trigger_completion_workflow(task.task_id)
 
     async def fail_task(self, task: Task, error: str) -> None:
         """Mark a task as failed and return the runner to idle."""
